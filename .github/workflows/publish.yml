@@ -2,7 +2,11 @@ name: publish-to-store
 
 on:
   push:
-    tags: ['v*']   # 与你现有的 tag 触发发布策略保持一致
+    tags: ['v*']   # 与你现有的 tag 发布策略保持一致
+
+env:
+  APP_VERSION: '1.4.1.0'
+  PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}   # Partner Center → 应用 → 产品管理 → 产品ID
 
 jobs:
   publish:
@@ -15,30 +19,113 @@ jobs:
           git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
           ls ./
 
-      # Windows VC编译工具
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Windows VC 编译工具
       - name: Install Windows VC++ build tools
-        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # Python依赖
+      # Python 依赖（Nuitka 必须在 requirements.txt 中，否则在此追加）
       - name: Install build dependencies
         working-directory: demo
         run: pip install -r requirements.txt -i https://pypi.org/simple
 
       # 执行自研构建脚本 --keep-tmp 异常时保留临时目录
-      - name: Build protected wheel (keep tmp for debug)
+      - name: Build protected executable with Nuitka
         working-directory: demo
-        run: python -m nuitka --standalone --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="1.4.1.0" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs/1400 --output-filename=LYZNote main.py
+        run: python -m nuitka --standalone --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
+
+      # 生成 MSIX：清单 + MakeAppx 打包 + signtool 签名
+      # 自 2023 年起 Partner Center 不再强制要求受信任证书签名，
+      # 上传后微软平台会对包重新签名，因此 CI 内使用自签名证书即可。
+      - name: Create MSIX package
+        shell: pwsh
+        working-directory: demo
+        run: |
+          New-Item -ItemType Directory -Force msix-root | Out-Null
+          Copy-Item outputs/LYZNote.exe msix-root/LYZNote.exe
+
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+                   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+            <Identity Name="${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}"
+                      Version="${{ env.APP_VERSION }}"
+                      Publisher="${{ secrets.STORE_PUBLISHER }}"
+                      ProcessorArchitecture="x64" />
+            <Properties>
+              <DisplayName>LYZNote</DisplayName>
+              <PublisherDisplayName>${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}</PublisherDisplayName>
+              <Logo>Assets\StoreLogo.png</Logo>
+            </Properties>
+            <Resources>
+              <Resource Language="zh-cn" />
+            </Resources>
+            <Dependencies>
+              <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+            </Dependencies>
+            <Capabilities>
+              <rescap:Capability Name="runFullTrust" />
+            </Capabilities>
+            <Applications>
+              <Application Id="LYZNote" Executable="LYZNote.exe" EntryPoint="Windows.FullTrustApplication">
+                <uap:VisualElements DisplayName="LYZNote" Description="LYZNote"
+                                    BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
+                                    Square44x44Logo="Assets\Square44x44Logo.png">
+                  <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+                </uap:VisualElements>
+              </Application>
+            </Applications>
+          </Package>
+          "@ | Out-File -Encoding utf8 msix-root/AppxManifest.xml
+
+          New-Item -ItemType Directory -Force msix-root/Assets | Out-Null
+          Copy-Item ../.github/store-assets/*.png msix-root/Assets/
+
+          $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" |
+                      Sort-Object FullName | Select-Object -Last 1
+          & $makeappx.FullName pack /d msix-root /p LYZNote.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "MakeAppx failed" }
+
+      - name: Sign MSIX (self-signed for CI)
+        shell: pwsh
+        working-directory: demo
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom `
+                    -Subject "CN=LYZNote CI" `
+                    -KeyUsage DigitalSignature `
+                    -CertStoreLocation Cert:\LocalMachine\My
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+                      Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /fd SHA256 /a /s LocalMachine /sha1 $cert.Thumbprint LYZNote.msix
+          if ($LASTEXITCODE -ne 0) { throw "Signtool failed" }
+
+      # 安装 Microsoft Store CLI（msstore）
+      - name: Install Microsoft Store CLI
+        run: dotnet tool install -g MicrosoftStoreServicesCLI
 
       - name: Configure Microsoft Store CLI
-        uses: microsoft/microsoft-store-apppublisher@v1.1
+        run: |
+          msstore reconfigure `
+            --tenantId ${{ secrets.TENANT_ID }} `
+            --sellerId ${{ secrets.TENANT_ID }} `
+            --clientId ${{ secrets.CLIENT_ID }} `
+            --clientSecret ${{ secrets.CLIENT_SECRET }}
 
-      - name: Reconfigure store credentials
-        run: msstore reconfigure `
-              --tenantId ${{ secrets.TENANT_ID }} `
-              --sellerId ${{ secrets.SELLER_ID }} `
-              --clientId ${{ secrets.CLIENT_ID }} `
-              --clientSecret ${{ secrets.CLIENT_SECRET }}
+      # 将 MSIX 上传到 Partner Center 并提交发布
+      - name: Publish to Microsoft Store
+        run: msstore publish "${{ github.workspace }}/demo/LYZNote.msix" -id ${{ env.PRODUCT_ID }} --telemetry
 
-      - name: Publish App package
-        run: msstore publish '${{ github.workspace }}/release/package.msix' -id <你的ProductID>
+      # 可选：同时把 exe 作为产物上传到 GitHub Release，便于分发
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LYZNote-${{ env.APP_VERSION }}
+          path: |
+            demo/LYZNote.msix
+            demo/outputs/LYZNote.exe
