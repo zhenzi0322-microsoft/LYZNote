@@ -46,7 +46,7 @@ jobs:
         working-directory: demo
         run: |
           New-Item -ItemType Directory -Force msix-root | Out-Null
-          Copy-Item outputs/LYZNote.exe msix-root/LYZNote.exe
+          Copy-Item outputs/main.dist msix-root
 
           @"
           <?xml version="1.0" encoding="utf-8"?>
