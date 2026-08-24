@@ -1,0 +1,44 @@
+name: publish-to-store
+
+on:
+  push:
+    tags: ['v*']   # 与你现有的 tag 触发发布策略保持一致
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Clone Codeup private repo
+        run: |
+          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
+          ls ./
+
+      # Windows VC编译工具
+      - name: Install Windows VC++ build tools
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Python依赖
+      - name: Install build dependencies
+        working-directory: demo
+        run: pip install -r requirements.txt -i https://pypi.org/simple
+
+      # 执行自研构建脚本 --keep-tmp 异常时保留临时目录
+      - name: Build protected wheel (keep tmp for debug)
+        working-directory: demo
+        run: python -m nuitka --standalone --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="1.4.1.0" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs/1400 --output-filename=LYZNote main.py
+
+      - name: Configure Microsoft Store CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Reconfigure store credentials
+        run: msstore reconfigure `
+              --tenantId ${{ secrets.TENANT_ID }} `
+              --sellerId ${{ secrets.SELLER_ID }} `
+              --clientId ${{ secrets.CLIENT_ID }} `
+              --clientSecret ${{ secrets.CLIENT_SECRET }}
+
+      - name: Publish App package
+        run: msstore publish '${{ github.workspace }}/release/package.msix' -id <你的ProductID>
