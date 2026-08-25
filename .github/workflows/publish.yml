@@ -191,12 +191,7 @@ jobs:
         run: dotnet tool install -g MicrosoftStoreServicesCLI
 
       - name: Configure Microsoft Store CLI
-        run: |
-          msstore reconfigure `
-            --tenantId ${{ secrets.TENANT_ID }} `
-            --sellerId ${{ secrets.TENANT_ID }} `
-            --clientId ${{ secrets.CLIENT_ID }} `
-            --clientSecret ${{ secrets.CLIENT_SECRET }}
+        run: msstore reconfigure --tenantId ${{ secrets.TENANT_ID }} --sellerId ${{ secrets.TENANT_ID }} --clientId ${{ secrets.CLIENT_ID }} --clientSecret ${{ secrets.CLIENT_SECRET }}
 
       # 将 MSIX 上传到 Partner Center 并提交发布
       # - name: Publish to Microsoft Store
