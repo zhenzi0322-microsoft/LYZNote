@@ -151,22 +151,36 @@ jobs:
                       Sort-Object FullName | Select-Object -Last 1
           & $makeappx.FullName pack /d msix-root /p LYZNote.msix /o
           if ($LASTEXITCODE -ne 0) { throw "MakeAppx failed" }
+          if (-not (Test-Path LYZNote.msix)) { throw "MakeAppx 未生成 LYZNote.msix，当前目录：$PWD" }
 
       - name: Sign MSIX (self-signed for CI)
         shell: pwsh
         working-directory: demo
         run: |
-          # 与本地打包脚本一致：代码签名 EKU + 基本约束，有效期 2 年（仅本次运行内使用）
+          $msix = Join-Path $PWD 'LYZNote.msix'
+          if (-not (Test-Path $msix)) {
+            Write-Host "当前目录内容："; Get-ChildItem | ForEach-Object { Write-Host $_.FullName }
+            throw "找不到 $msix"
+          }
+
+          # 与本地验证过的签名流程一致：建证书 → 导出 PFX → /f + /p 签名
+          # 证书仅本次运行内使用，密码硬编码无安全风险（无需占用 secret）
           $cert = New-SelfSignedCertificate -Type Custom `
                     -Subject "CN=LYZNote CI" `
                     -KeyUsage DigitalSignature `
                     -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}") `
                     -NotAfter (Get-Date).AddYears(2) `
                     -CertStoreLocation Cert:\CurrentUser\My
+          $pfxPass = ConvertTo-SecureString -String "ci-signing-temp" -Force -AsPlainText
+          $pfx = Join-Path $PWD 'LYZNote.pfx'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pfxPass | Out-Null
+
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
                       Sort-Object FullName | Select-Object -Last 1
+          Write-Host "signtool: $($signtool.FullName)"
+          Write-Host "signing : $msix"
           # 提交 Store 时平台会重新签名，时间戳非必需，但加上更规范
-          & $signtool.FullName sign /fd SHA256 /a /s CurrentUser /sha1 $cert.Thumbprint /t "http://timestamp.digicert.com" LYZNote.msix
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p "ci-signing-temp" /t "http://timestamp.digicert.com" $msix
           if ($LASTEXITCODE -ne 0) { throw "Signtool failed" }
 
       # 安装 Microsoft Store CLI（msstore）
