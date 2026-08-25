@@ -9,10 +9,23 @@ env:
   PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}   # Partner Center → 应用 → 产品管理 → 产品ID
 
 jobs:
-  publish:
+  # ============ Job 1：Nuitka 编译（耗时最长，产物缓存为中间 artifact）============
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+
+      # 前置校验：Store 打包所需的 secret 必须已配置，否则提前报明确错误
+      - name: Validate Store secrets
+        shell: pwsh
+        run: |
+          $missing = @()
+          if (-not '${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}') { $missing += 'STORE_PACKAGE_IDENTITY_NAME' }
+          if (-not '${{ secrets.STORE_PUBLISHER }}')             { $missing += 'STORE_PUBLISHER' }
+          if (-not '${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}') { $missing += 'STORE_PUBLISHER_DISPLAY_NAME' }
+          if ($missing.Count -gt 0) {
+            throw "缺少 GitHub Secret: $($missing -join ', ')。请到 Settings → Secrets and variables → Actions 配置（值取自 Partner Center → 包标识页面）"
+          }
 
       - name: Clone Codeup private repo
         run: |
@@ -48,7 +61,28 @@ jobs:
         working-directory: demo
         run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
 
-      # 生成 MSIX：清单 + MakeAppx 打包 + signtool 签名
+      # 将编译产物传给下一个 job；MSIX 环节失败时重跑 package job 即可，无需重新编译
+      - name: Upload Nuitka dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuitka-dist
+          path: demo/outputs/main.dist
+          retention-days: 3   # 中间产物只保留 3 天，节省存储配额
+
+  # ============ Job 2：MSIX 打包、签名并发布到 Microsoft Store ============
+  package-and-publish:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # 恢复 Job 1 的编译产物到 demo/outputs/main.dist
+      - name: Download Nuitka dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nuitka-dist
+
+      # 生成 MSIX：清单 + MakeAppx 打包
       # 自 2023 年起 Partner Center 不再强制要求受信任证书签名，
       # 上传后微软平台会对包重新签名，因此 CI 内使用自签名证书即可。
       - name: Create MSIX package
@@ -136,7 +170,7 @@ jobs:
       # - name: Publish to Microsoft Store
       #   run: msstore publish "${{ github.workspace }}/demo/LYZNote.msix" -id ${{ env.PRODUCT_ID }} --telemetry
 
-      # 可选：同时把 exe 作为产物上传到 GitHub Release，便于分发
+      # 最终产物：MSIX + 完整 dist 目录
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
