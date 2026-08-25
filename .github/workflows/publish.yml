@@ -59,8 +59,7 @@ jobs:
       # --assume-yes-for-downloads：CI 非交互环境下自动确认下载官方指定的 winlibs gcc
       - name: Build protected executable with Nuitka
         working-directory: demo
-        run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
-
+        run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" -nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --output-dir=outputs --output-filename=LYZNote main.py
       # 将编译产物传给下一个 job；MSIX 环节失败时重跑 package job 即可，无需重新编译
       - name: Upload Nuitka dist artifact
         uses: actions/upload-artifact@v4
@@ -99,19 +98,29 @@ jobs:
           if (-not $exe) { throw "No exe found in outputs/main.dist" }
           Write-Host "Entry executable: $($exe.Name)"
 
+          # 校验并规范化 Store 身份信息（去除粘贴带入的首尾空白/换行）
+          $identityName = '${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}'.Trim()
+          $publisher = '${{ secrets.STORE_PUBLISHER }}'.Trim()
+          $publisherDisplay = '${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}'.Trim()
+          if ($publisher -notmatch '^(CN|L|O|OU|E|C|S|STREET|T|G|I|SN|DC|SERIALNUMBER)=') {
+            # 不输出值本身（会被掩码），只输出结构特征便于排查
+            Write-Host "STORE_PUBLISHER 诊断：长度=$($publisher.Length), 含等号=$($publisher.Contains('=')), 以CN开头=$($publisher.StartsWith('CN'))"
+            throw "STORE_PUBLISHER 格式错误：必须是 DN 格式如 'CN=XXXXXXXX'。完整值请到 Partner Center → 应用管理 → 包标识页面复制 Publisher 字段"
+          }
+
           @"
           <?xml version="1.0" encoding="utf-8"?>
           <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
                    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
                    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
                    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-            <Identity Name="${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}"
+            <Identity Name="$identityName"
                       Version="${{ env.APP_VERSION }}"
-                      Publisher="${{ secrets.STORE_PUBLISHER }}"
+                      Publisher="$publisher"
                       ProcessorArchitecture="x64" />
             <Properties>
               <DisplayName>LYZNote</DisplayName>
-              <PublisherDisplayName>${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}</PublisherDisplayName>
+              <PublisherDisplayName>$publisherDisplay</PublisherDisplayName>
               <Logo>Assets\StoreLogo.png</Logo>
             </Properties>
             <Resources>
