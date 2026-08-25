@@ -47,4 +47,33 @@ jobs:
     - name: Get base metadata  
       shell: pwsh 
       run: | 
-        msstore submission get ${{ secrets.STORE_ID }}
+        # msstore CLI 报错信息太笼统，直接调 REST API 拿真实错误
+        $tenantId = '${{ secrets.AZURE_AD_TENANT_ID }}'.Trim()
+        $body = @{
+          grant_type    = 'client_credentials'
+          client_id     = '${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}'.Trim()
+          client_secret = '${{ secrets.AZURE_AD_APPLICATION_SECRET }}'.Trim()
+          resource      = 'https://manage.devcenter.microsoft.com'
+        }
+        $token = (Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$tenantId/oauth2/token" -Body $body).access_token
+        $headers = @{ Authorization = "Bearer $token" }
+
+        Write-Host "--- 1) 账户下所有应用（对照你的 STORE_ID）---"
+        try {
+          $apps = Invoke-RestMethod -Uri "https://manage.devcenter.microsoft.com/v1.0/my/applications" -Headers $headers
+          $apps.value | ForEach-Object { Write-Host "appId=$($_.id)  name=$($_.name)" }
+        } catch {
+          Write-Host "拉取应用列表失败：$($_.Exception.Response.StatusCode) $($_.ErrorDetails.Message)"
+        }
+
+        Write-Host "--- 2) 查询 STORE_ID 的 submission ---"
+        $productId = '${{ secrets.STORE_ID }}'.Trim()
+        Write-Host "STORE_ID 长度: $($productId.Length)"
+        try {
+          $sub = Invoke-RestMethod -Uri "https://manage.devcenter.microsoft.com/v1.0/my/applications/$productId/submissions" -Headers $headers
+          $sub | ConvertTo-Json -Depth 5
+        } catch {
+          Write-Host "查询 submission 失败：$($_.Exception.Response.StatusCode) $($_.ErrorDetails.Message)"
+          Write-Host "404=产品ID错误或应用不在账户内 | 403=应用注册未关联或无 Manager 角色"
+          throw
+        }
