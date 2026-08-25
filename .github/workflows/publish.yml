@@ -20,7 +20,7 @@ jobs:
           ls ./
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -33,10 +33,20 @@ jobs:
         working-directory: demo
         run: pip install -r requirements.txt -i https://pypi.org/simple
 
+      # 缓存 Nuitka 下载的 gcc（winlibs）及编译缓存，避免每次重新下载数百 MB
+      - name: Cache Nuitka downloads
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\Nuitka
+          key: nuitka-${{ runner.os }}-${{ hashFiles('demo/requirements.txt') }}
+          restore-keys: |
+            nuitka-${{ runner.os }}-
+
       # 执行自研构建脚本 --keep-tmp 异常时保留临时目录
+      # --assume-yes-for-downloads：CI 非交互环境下自动确认下载官方指定的 winlibs gcc
       - name: Build protected executable with Nuitka
         working-directory: demo
-        run: python -m nuitka --standalone --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
+        run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
 
       # 生成 MSIX：清单 + MakeAppx 打包 + signtool 签名
       # 自 2023 年起 Partner Center 不再强制要求受信任证书签名，
@@ -46,7 +56,12 @@ jobs:
         working-directory: demo
         run: |
           New-Item -ItemType Directory -Force msix-root | Out-Null
-          Copy-Item outputs/main.dist msix-root
+          # standalone 模式输出的是 main.dist 目录，需 -Recurse 递归复制
+          Copy-Item outputs/main.dist msix-root/main.dist -Recurse
+          # 自动探测 main.dist 内的入口 exe（--output-filename=LYZNote 时为 LYZNote.exe，否则为 main.exe）
+          $exe = Get-ChildItem msix-root/main.dist/*.exe | Select-Object -First 1
+          if (-not $exe) { throw "No exe found in outputs/main.dist" }
+          Write-Host "Entry executable: $($exe.Name)"
 
           @"
           <?xml version="1.0" encoding="utf-8"?>
@@ -73,7 +88,7 @@ jobs:
               <rescap:Capability Name="runFullTrust" />
             </Capabilities>
             <Applications>
-              <Application Id="LYZNote" Executable="LYZNote.exe" EntryPoint="Windows.FullTrustApplication">
+              <Application Id="LYZNote" Executable="main.dist\$($exe.Name)" EntryPoint="Windows.FullTrustApplication">
                 <uap:VisualElements DisplayName="LYZNote" Description="LYZNote"
                                     BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
                                     Square44x44Logo="Assets\Square44x44Logo.png">
@@ -118,8 +133,8 @@ jobs:
             --clientSecret ${{ secrets.CLIENT_SECRET }}
 
       # 将 MSIX 上传到 Partner Center 并提交发布
-      - name: Publish to Microsoft Store
-        run: msstore publish "${{ github.workspace }}/demo/LYZNote.msix" -id ${{ env.PRODUCT_ID }} --telemetry
+      # - name: Publish to Microsoft Store
+      #   run: msstore publish "${{ github.workspace }}/demo/LYZNote.msix" -id ${{ env.PRODUCT_ID }} --telemetry
 
       # 可选：同时把 exe 作为产物上传到 GitHub Release，便于分发
       - name: Upload build artifact
@@ -128,4 +143,4 @@ jobs:
           name: LYZNote-${{ env.APP_VERSION }}
           path: |
             demo/LYZNote.msix
-            demo/outputs/LYZNote.exe
+            demo/outputs/main.dist
