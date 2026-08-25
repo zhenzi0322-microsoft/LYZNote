@@ -14,7 +14,33 @@ jobs:
 
     - name: msstore reconfigure help
       run: msstore reconfigure --help
- 
+
+    # 诊断：直接用凭据向 AAD 申请 Store API token，失败时输出精确的 AAD 错误码
+    - name: Diagnose Store API credentials
+      shell: pwsh
+      run: |
+        $tenantId = '${{ secrets.AZURE_AD_TENANT_ID }}'.Trim()
+        Write-Host "tenantId 长度: $($tenantId.Length)（GUID 应为 36）"
+        try {
+          $body = @{
+            grant_type    = 'client_credentials'
+            client_id     = '${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}'.Trim()
+            client_secret = '${{ secrets.AZURE_AD_APPLICATION_SECRET }}'.Trim()
+            resource      = 'https://manage.devcenter.microsoft.com'
+          }
+          Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$tenantId/oauth2/token" -Body $body | Out-Null
+          Write-Host "✅ 凭据有效：clientId/clientSecret/tenantId 均正确"
+          Write-Host "若 msstore 仍报 auth 失败，问题在 Partner Center 关联：应用未关联账户或未授予 Manager 角色；另确认 sellerId 填的是 TenantId"
+        } catch {
+          $detail = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else {
+            $reader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
+            $reader.ReadToEnd()
+          }
+          Write-Host "❌ AAD 认证失败，详情：$detail"
+          Write-Host "对照错误码：AADSTS90002=tenantId错误 | AADSTS700016=clientId不存在于该租户 | AADSTS7000215=clientSecret错误或过期"
+          throw "凭据诊断失败，见上方 AAD 错误详情"
+        }
+
     - name: Configure MSStore CLI 
       run: msstore reconfigure --tenantId ${{ secrets.AZURE_AD_TENANT_ID }} --sellerId ${{ secrets.SELLER_ID }} --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
  
