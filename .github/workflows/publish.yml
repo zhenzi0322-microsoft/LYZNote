@@ -48,7 +48,7 @@ jobs:
 
       # 缓存 Nuitka 下载的 gcc（winlibs）及编译缓存，避免每次重新下载数百 MB
       - name: Cache Nuitka downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~\AppData\Local\Nuitka
           key: nuitka-${{ runner.os }}-${{ hashFiles('demo/requirements.txt') }}
