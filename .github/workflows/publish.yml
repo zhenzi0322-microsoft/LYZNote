@@ -29,7 +29,7 @@ jobs:
 
       - name: Clone Codeup private repo
         run: |
-          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
+          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@{{ secrets.GIT_URL }} demo
           ls ./
 
       - name: Setup Python
@@ -133,7 +133,7 @@ jobs:
               </Application>
             </Applications>
           </Package>
-          "@ | Out-File -Encoding utf8 msix-root/AppxManifest.xml
+          "@ | Out-File -Encoding utf8BOM msix-root/AppxManifest.xml   # MakeAppx 要求声明 UTF-8 的清单带 BOM
 
           New-Item -ItemType Directory -Force msix-root/Assets | Out-Null
           Copy-Item ../.github/store-assets/*.png msix-root/Assets/
@@ -147,13 +147,17 @@ jobs:
         shell: pwsh
         working-directory: demo
         run: |
+          # 与本地打包脚本一致：代码签名 EKU + 基本约束，有效期 2 年（仅本次运行内使用）
           $cert = New-SelfSignedCertificate -Type Custom `
                     -Subject "CN=LYZNote CI" `
                     -KeyUsage DigitalSignature `
-                    -CertStoreLocation Cert:\LocalMachine\My
+                    -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}") `
+                    -NotAfter (Get-Date).AddYears(2) `
+                    -CertStoreLocation Cert:\CurrentUser\My
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
                       Sort-Object FullName | Select-Object -Last 1
-          & $signtool.FullName sign /fd SHA256 /a /s LocalMachine /sha1 $cert.Thumbprint LYZNote.msix
+          # 提交 Store 时平台会重新签名，时间戳非必需，但加上更规范
+          & $signtool.FullName sign /fd SHA256 /a /s CurrentUser /sha1 $cert.Thumbprint /t "http://timestamp.digicert.com" LYZNote.msix
           if ($LASTEXITCODE -ne 0) { throw "Signtool failed" }
 
       # 安装 Microsoft Store CLI（msstore）
@@ -177,6 +181,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LYZNote-${{ env.APP_VERSION }}
+          retention-days: 14   # Free 计划 artifact 存储配额仅 500MB，避免多版本累积占满
           path: |
             demo/LYZNote.msix
             demo/outputs/main.dist
