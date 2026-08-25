@@ -1,0 +1,27 @@
+name: AppPackageAutoUpdate 
+ 
+on: 
+  push: 
+    paths: 
+      - 'release/package.msix' 
+ 
+jobs: 
+  build: 
+    runs-on: windows-latest 
+ 
+    steps: 
+      - name: Checkout repository 
+        uses: actions/checkout@v5
+ 
+      - name: Configure Microsoft Store CLI 
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+ 
+      - name: Reconfigure store credentials 
+        run: msstore reconfigure ` 
+              --tenantId ${{ secrets.AZURE_AD_TENANT_ID }} ` 
+              --sellerId ${{ secrets.SELLER_ID }} ` 
+              --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} ` 
+              --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }} 
+ 
+      - name: Publish App package 
+        run: msstore publish '${{ github.workspace }}/release/package.msix' -id ${{ secrets.STORE_ID }}
