@@ -186,14 +186,20 @@ jobs:
             Write-Warning "MSIX 签名失败（不影响 Store 提交，Partner Center 上传后会用微软证书重新签名）：$_"
           }
 
-      # 安装 Microsoft Store CLI（msstore）
-      - name: Install Microsoft Store CLI
-        run: dotnet tool install -g MicrosoftStoreServicesCLI
-
-      - name: Configure Microsoft Store CLI
-        run: msstore reconfigure --tenantId ${{ secrets.TENANT_ID }} --sellerId ${{ secrets.TENANT_ID }} --clientId ${{ secrets.CLIENT_ID }} --clientSecret ${{ secrets.CLIENT_SECRET }}
-
-      # 将 MSIX 上传到 Partner Center 并提交发布
+      # ------------------------------------------------------------------
+      # 发布方式说明（方案 A）：
+      # 本账户为个人 MSA 开发者账户，微软不支持其通过 client_credentials
+      # 调用 Store Submission API（无「Entra 应用程序」关联入口），
+      # 因此 CI 只负责构建 + 打包 MSIX，提交发布采用手动方式：
+      #   1. 本工作流完成后，在 Actions 页面下载 artifact（LYZNote-x.x.x.x）
+      #   2. 解压得到 LYZNote.msix
+      #   3. Partner Center → 应用 → 提交 → 上传该 MSIX → 提交认证
+      # 若日后升级为企业账户，可恢复下方 msstore 自动发布步骤。
+      # ------------------------------------------------------------------
+      # - name: Install Microsoft Store CLI
+      #   run: dotnet tool install -g MicrosoftStoreServicesCLI
+      # - name: Configure Microsoft Store CLI
+      #   run: msstore reconfigure --tenantId ${{ secrets.TENANT_ID }} --sellerId ${{ secrets.TENANT_ID }} --clientId ${{ secrets.CLIENT_ID }} --clientSecret ${{ secrets.CLIENT_SECRET }}
       # - name: Publish to Microsoft Store
       #   run: msstore publish "${{ github.workspace }}/demo/LYZNote.msix" -id ${{ env.PRODUCT_ID }} --telemetry
 
