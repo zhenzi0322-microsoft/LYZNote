@@ -45,7 +45,7 @@ jobs:
       # --assume-yes-for-downloads：CI 非交互环境下自动确认下载官方指定的 winlibs gcc
       - name: Build protected executable with Nuitka
         working-directory: demo
-        run: ython -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="1.4.1.0" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
+        run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="1.4.1.0" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
       # 将编译产物传给下一个 job；MSIX 环节失败时重跑 package job 即可，无需重新编译
       - name: Upload Nuitka dist artifact
         uses: actions/upload-artifact@v4
