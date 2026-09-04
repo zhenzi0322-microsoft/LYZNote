@@ -51,9 +51,11 @@ jobs:
 
       - name: print outputs
         working-directory: demo
-        run: |
-          ls -l outputs
-          ls -l outputs/main.bin
+        run: ls -l outputs
+      
+      - name: print main.bin
+        working-directory: demo
+        run: ls -l outputs/main.bin
       
       # 必须 ditto 打包：保留 .app 内符号链接与可执行权限，普通 zip 会破坏权限导致“应用已损坏”
       - name: Package app bundle to zip
