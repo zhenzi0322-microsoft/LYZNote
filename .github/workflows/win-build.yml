@@ -1,4 +1,4 @@
-name: build-and-package
+name: build-win-package
 
 on:
   push:
