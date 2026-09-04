@@ -24,6 +24,13 @@ jobs:
           make -j4
           ls -la .
           ls -la src/
+      
+      - name: Upload libsimple.dylib artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsimple-macos-universal
+          path: simple/build/src/libsimple.dylib
+          retention-days: 14
 
       - name: Clone Codeup private repo
         run: |
