@@ -49,6 +49,7 @@ jobs:
         run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
 
       - name: print outputs
+        working-directory: demo
         run: ls -l outputs
       
       # 必须 ditto 打包：保留 .app 内符号链接与可执行权限，普通 zip 会破坏权限导致“应用已损坏”
