@@ -14,6 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: build libsimple.dylib
+        run: |
+          git clone https://github.com/wangfenjin/simple.git
+          cd simple
+          mkdir build && cd build
+          cmake -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
+          make
+          ls -la libsimple.dylib
+
       - name: Clone Codeup private repo
         run: |
           git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
@@ -28,15 +37,6 @@ jobs:
       - name: Install build dependencies
         working-directory: demo
         run: pip install -r requirements.txt -i https://pypi.org/simple
-      
-      - name: build libsimple.dylib
-        run: |
-          git clone https://github.com/wangfenjin/simple.git
-          cd simple
-          mkdir build && cd build
-          cmake -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
-          make
-          ls -la libsimple.dylib
 
       # 缓存 Nuitka 下载的依赖（clang 等），macOS 缓存路径为 ~/Library/Caches/Nuitka
       - name: Cache Nuitka downloads
