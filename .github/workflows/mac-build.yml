@@ -47,7 +47,7 @@ jobs:
       # --macos-app-icon 支持 .ico 自动转换；--macos-app-name 写入 Info.plist
       - name: Build protected app with Nuitka
         working-directory: demo
-        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
+        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-create-app-bundle --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
 
       - name: print outputs
         working-directory: demo
@@ -61,7 +61,7 @@ jobs:
       - name: Package app bundle to zip
         working-directory: demo
         run: |
-          APP_PATH=$(ls -d outputs/*.bin 2>/dev/null | head -n1)
+          APP_PATH=$(ls -d outputs/*.app 2>/dev/null | head -n1)
           if [ -z "$APP_PATH" ]; then echo "::error::未找到 .app bundle，请检查 Nuitka 构建"; exit 1; fi
           echo "App bundle: $APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "outputs/LYZNote-${{ env.APP_VERSION }}-macOS.zip"
