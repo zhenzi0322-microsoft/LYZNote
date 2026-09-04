@@ -1,6 +1,7 @@
 name: build-and-package
 
 on:
+  workflow_dispatch:
   push:
     tags: ['mac*']   # 与你现有的 tag 发布策略保持一致
 
