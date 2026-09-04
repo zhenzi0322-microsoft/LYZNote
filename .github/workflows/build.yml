@@ -74,6 +74,9 @@ jobs:
       - name: Install build dependencies
         working-directory: demo
         run: pip install -r requirements.txt -i https://pypi.org/simple
+      
+      - name: Install pysqlite3-binary (source build on mac)
+        run: pip install pysqlite3-binary -i https://pypi.org/simple
 
       # 缓存 Nuitka 下载的依赖（clang 等），macOS 缓存路径为 ~/Library/Caches/Nuitka
       - name: Cache Nuitka downloads
