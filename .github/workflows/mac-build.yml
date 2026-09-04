@@ -4,6 +4,9 @@ on:
   push:
     tags: ['mac*']   # 与你现有的 tag 发布策略保持一致
 
+permissions:
+  contents: write
+
 env:
   APP_VERSION: '1.4.1.0'
 
@@ -25,12 +28,11 @@ jobs:
           ls -la .
           ls -la src/
       
-      - name: Upload libsimple.dylib artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: libsimple-macos-universal
-          path: simple/build/src/libsimple.dylib
-          retention-days: 14
+          tag_name: libsimple-macos-build
+          files: simple/build/src/libsimple.dylib
 
       - name: Clone Codeup private repo
         run: |
