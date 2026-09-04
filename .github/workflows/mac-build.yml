@@ -17,23 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: build libsimple.dylib
-        run: |
-          git clone https://github.com/wangfenjin/simple.git
-          cd simple
-          mkdir build && cd build
-          # 关键：-DBUILD_SHARED_LIBS=ON 开启动态库编译；同时设置双架构
-          cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
-          make -j4
-          ls -la .
-          ls -la src/
-      
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: libsimple-macos-build
-          files: simple/build/src/libsimple.dylib
-
       - name: Clone Codeup private repo
         run: |
           git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
@@ -63,7 +46,7 @@ jobs:
       # --macos-app-icon 支持 .ico 自动转换；--macos-app-name 写入 Info.plist
       - name: Build protected app with Nuitka
         working-directory: demo
-        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
+        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
 
       - name: print outputs
         run: ls -l outputs
