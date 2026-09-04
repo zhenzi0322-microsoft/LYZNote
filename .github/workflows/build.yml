@@ -77,6 +77,15 @@ jobs:
       
       - name: Install pysqlite3-binary (source build on mac)
         run: pip install pysqlite3-binary -i https://pypi.org/simple
+      
+      - name: build libsimple.dylib
+        run: |
+          git clone https://github.com/wangfenjin/simple.git
+          cd simple
+          mkdir build && cd build
+          cmake -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
+          make
+          ls -la libsimple.dylib
 
       # 缓存 Nuitka 下载的依赖（clang 等），macOS 缓存路径为 ~/Library/Caches/Nuitka
       - name: Cache Nuitka downloads
