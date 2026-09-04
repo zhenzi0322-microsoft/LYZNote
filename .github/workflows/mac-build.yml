@@ -19,9 +19,11 @@ jobs:
           git clone https://github.com/wangfenjin/simple.git
           cd simple
           mkdir build && cd build
-          cmake -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
-          make
-          ls -la libsimple.dylib
+          # 关键：-DBUILD_SHARED_LIBS=ON 开启动态库编译；同时设置双架构
+          cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
+          make -j4
+          ls -la .
+          ls -la src/
 
       - name: Clone Codeup private repo
         run: |
