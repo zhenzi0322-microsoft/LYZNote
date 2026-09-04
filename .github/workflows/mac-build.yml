@@ -59,7 +59,7 @@ jobs:
       - name: Package app bundle to zip
         working-directory: demo
         run: |
-          APP_PATH=$(ls -d outputs/*.app 2>/dev/null | head -n1)
+          APP_PATH=$(ls -d outputs/main.bin/*.app 2>/dev/null | head -n1)
           if [ -z "$APP_PATH" ]; then echo "::error::未找到 .app bundle，请检查 Nuitka 构建"; exit 1; fi
           echo "App bundle: $APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "outputs/LYZNote-${{ env.APP_VERSION }}-macOS.zip"
