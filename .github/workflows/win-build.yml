@@ -37,13 +37,13 @@ jobs:
           restore-keys: |
             nuitka-${{ runner.os }}-
 
-      # 执行自研构建脚本 --keep-tmp 异常时保留临时目录
-      # --assume-yes-for-downloads：CI 非交互环境下自动确认下载官方指定的 winlibs gcc
-      - name: Build protected executable with Nuitka
-        working-directory: demo
+      - name: Nuitka build windows
+        working-directory: .
         run: |
-          chmod +x ./docs/scripts/build_nuitka_win.sh
-          ./docs/scripts/build_nuitka_win.sh
+          ./docs/scripts/build_nuitka_win.ps1
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ env.APP_VERSION }}
 
       - name: Build NSIS Installer
         working-directory: demo
