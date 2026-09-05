@@ -73,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: LYZNote-${{ env.APP_VERSION }}-windows
-          path: demo/outputs/LYZNote-*-win.exe
+          path: demo/outputs/LYZNote-*-win-setup.exe
           retention-days: 7   # 中间产物只保留 3 天，节省存储配额
