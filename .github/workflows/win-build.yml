@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: compile-output
-          path: demo/outputs/
+          path: demo/outputs/main.dist
           retention-days: 7
 
   # ========= Job2：只做NSIS打包，不跑Nuitka编译 =========
@@ -67,7 +67,7 @@ jobs:
         uses: actions/download-artifact@v6
         with:
           name: compile-output
-          path: demo/outputs
+          path: demo/outputs/main.dist
 
       - name: Install NSIS via Chocolatey
         shell: pwsh
