@@ -1,6 +1,7 @@
 name: build-win-package
 
 on:
+  workflow_dispatch:
   push:
     tags: ['win*']   # 与你现有的 tag 发布策略保持一致
 
@@ -27,11 +28,6 @@ jobs:
       - name: Install Windows VC++ build tools
         uses: ilammy/msvc-dev-cmd@v1
 
-      # Python 依赖（Nuitka 必须在 requirements.txt 中，否则在此追加）
-      - name: Install build dependencies
-        working-directory: demo
-        run: pip install -r requirements.txt -i https://pypi.org/simple
-
       # 缓存 Nuitka 下载的 gcc（winlibs）及编译缓存，避免每次重新下载数百 MB
       - name: Cache Nuitka downloads
         uses: actions/cache@v5
@@ -45,11 +41,24 @@ jobs:
       # --assume-yes-for-downloads：CI 非交互环境下自动确认下载官方指定的 winlibs gcc
       - name: Build protected executable with Nuitka
         working-directory: demo
-        run: python -m nuitka --standalone --assume-yes-for-downloads --noinclude-qt-translations --windows-console-mode=disable --onefile-no-compression --show-progress --product-name="LYZNote" --file-version="1.4.1.0" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/simple.dll=static/assets/simple.dll --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --windows-icon-from-ico=static/logo/logo.ico --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs --output-filename=LYZNote main.py
+        run: |
+          chmod +x ./docs/scripts/build_nuitka_win.sh
+          ./docs/scripts/build_nuitka_win.sh
+
+      - name: Build NSIS Installer
+        working-directory: demo
+        run: |
+          makensis /DAPP_VERSION=${{ env.APP_VERSION }} docs/scripts/installer.nsi
+      
+      - name: print outputs
+        working-directory: demo
+        run: |
+          ls -l ./outputs
+
       # 将编译产物传给下一个 job；MSIX 环节失败时重跑 package job 即可，无需重新编译
       - name: Upload Nuitka dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: nuitka-dist
-          path: demo/outputs/main.dist
-          retention-days: 3   # 中间产物只保留 3 天，节省存储配额
+          name: LYZNote-${{ env.APP_VERSION }}-windows
+          path: demo/outputs/LYZNote-*-win.exe
+          retention-days: 7   # 中间产物只保留 3 天，节省存储配额

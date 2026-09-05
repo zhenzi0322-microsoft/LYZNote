@@ -64,7 +64,7 @@ jobs:
       #     retention-days: 7   # 最终产物保留 14 天，可直接从 Actions 页面下载分发
       
       - name: Upload macOS zip artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: LYZNote-${{ env.APP_VERSION }}-macOS
           path: demo/outputs/LYZNote-${{ env.APP_VERSION }}_${{ env.MAC_ARCH }}.dmg
