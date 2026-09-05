@@ -47,7 +47,7 @@ jobs:
       # --macos-app-icon 支持 .ico 自动转换；--macos-app-name 写入 Info.plist
       - name: Build protected app with Nuitka
         working-directory: demo
-        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-create-app-bundle --macos-app-mode=gui --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
+        run: python -m nuitka --assume-yes-for-downloads --noinclude-qt-translations --show-progress --macos-create-app-bundle --macos-app-mode=gui --macos-target-arch=x86_64,arm64 --macos-app-name="LYZNote" --macos-app-icon=static/logo/logo.icns --macos-app-version="${{ env.APP_VERSION }}" --include-data-dir=templates=templates --include-data-dir=static/assets=static/assets --include-data-files=static/assets/libsimple.dylib=static/assets/libsimple.dylib --nofollow-import-to=unittest,tkinter --plugin-enable=pyside6 --include-package-data=aliyunsdkcore --include-package=markdown,markdown_checklist,pymdownx,mdx_math,pygments,mistune --output-dir=outputs main.py
 
       - name: print outputs
         working-directory: demo
@@ -55,7 +55,12 @@ jobs:
       
       - name: print main.build
         working-directory: demo
-        run: ls -l outputs/main.build
+        run: |
+          if [ -d "outputs/main.dist" ]; then
+            ls -l outputs/main.dist
+          else
+            echo "::warning::outputs/main.dist 目录不存在"
+          fi
       
       # 必须 ditto 打包：保留 .app 内符号链接与可执行权限，普通 zip 会破坏权限导致“应用已损坏”
       - name: Package app bundle to zip
@@ -71,4 +76,4 @@ jobs:
         with:
           name: LYZNote-${{ env.APP_VERSION }}-macOS
           path: demo/outputs/LYZNote-*-macOS.zip
-          retention-days: 14   # 最终产物保留 14 天，可直接从 Actions 页面下载分发
+          retention-days: 7   # 最终产物保留 14 天，可直接从 Actions 页面下载分发
