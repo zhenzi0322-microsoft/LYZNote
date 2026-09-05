@@ -54,7 +54,8 @@ jobs:
       - name: Build NSIS Installer
         working-directory: demo
         run: |
-          makensis /DAPP_VERSION=${{ env.APP_VERSION }} docs/scripts/installer.nsi
+          ls -l ./docs/scripts
+          makensis /DAPP_VERSION=${{ env.APP_VERSION }} ./docs/scripts/installer.nsi
       
       - name: print outputs
         working-directory: demo
