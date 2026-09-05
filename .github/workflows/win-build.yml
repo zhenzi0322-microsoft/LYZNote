@@ -45,6 +45,9 @@ jobs:
         env:
           APP_VERSION: ${{ env.APP_VERSION }}
 
+      - name: Setup NSIS
+        uses: jonmorgan/setup-nsis@v1
+
       - name: Build NSIS Installer
         working-directory: demo
         run: |
