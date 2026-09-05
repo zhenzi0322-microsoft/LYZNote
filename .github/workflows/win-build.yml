@@ -38,7 +38,7 @@ jobs:
             nuitka-${{ runner.os }}-
 
       - name: Nuitka build windows
-        working-directory: .
+        working-directory: demo
         run: |
           ./docs/scripts/build_nuitka_win.ps1
         shell: pwsh
