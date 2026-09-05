@@ -1,37 +1,32 @@
 name: build-win-package
-
 on:
   workflow_dispatch:
   push:
-    tags: ['win*']   # 与你现有的 tag 发布策略保持一致
+    tags: ['win*']
 
 env:
   APP_VERSION: '1.4.1.0'
 
 jobs:
-  build:
+  # ========= Job1：只做Nuitka编译，产出main.dist =========
+  build-compile:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Clone Codeup private repo
+      - name: Clone Codeup private repo into demo
         run: |
-          pwd
           git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
-          ls ./
-          ls -l ./demo/docs/scripts
-          pwd
+        shell: pwsh
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.10'
 
-      # Windows VC 编译工具
       - name: Install Windows VC++ build tools
         uses: ilammy/msvc-dev-cmd@v1
 
-      # 缓存 Nuitka 下载的 gcc（winlibs）及编译缓存，避免每次重新下载数百 MB
       - name: Cache Nuitka downloads
         uses: actions/cache@v5
         with:
@@ -45,8 +40,34 @@ jobs:
         run: |
           ./docs/scripts/build_nuitka_win.ps1
         shell: pwsh
-        env:
-          APP_VERSION: ${{ env.APP_VERSION }}
+
+      # 上传编译产物（main.dist整个目录）给下一个job
+      - name: Upload compile artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: compile-output
+          path: demo/outputs/
+          retention-days: 7
+
+  # ========= Job2：只做NSIS打包，不跑Nuitka编译 =========
+  build-package:
+    needs: build-compile   # 必须等编译job完成才执行
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # 再次拉取源码（需要nsi脚本、static图标资源）
+      - name: Clone Codeup private repo into demo
+        run: |
+          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
+        shell: pwsh
+
+      # 下载上一步Nuitka编译好的 outputs 产物
+      - name: Download compile artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: compile-output
+          path: demo/outputs
 
       - name: Install NSIS via Chocolatey
         shell: pwsh
@@ -54,24 +75,25 @@ jobs:
           choco install nsis -y --no-progress
           "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
+      # ⚠️注意：working‑directory: demo，$root = demo目录，所有资源都在demo下
       - name: Build NSIS Installer
         shell: pwsh
         working-directory: demo
         run: |
           $root = $pwd.Path
-          Write-Host "ROOT: $root"
+          Write-Host "ROOT = $root"
           Write-Host "Ico exists: $(Test-Path "$root\static\logo\logo.ico")"
+          Write-Host "main.dist exists: $(Test-Path "$root\outputs\main.dist")"
           makensis "/DAPP_VERSION=${{ env.APP_VERSION }}" "/DROOT=$root" ./docs/scripts/installer.nsi
-      
+
       - name: print outputs
         working-directory: demo
         run: |
-          ls -l ./outputs
+          Get-ChildItem ./outputs
 
-      # 将编译产物传给下一个 job；MSIX 环节失败时重跑 package job 即可，无需重新编译
-      - name: Upload Nuitka dist artifact
+      - name: Upload final setup artifact
         uses: actions/upload-artifact@v6
         with:
           name: LYZNote-${{ env.APP_VERSION }}-windows
           path: demo/outputs/LYZNote-*-win-setup.exe
-          retention-days: 7   # 中间产物只保留 3 天，节省存储配额
+          retention-days: 7
