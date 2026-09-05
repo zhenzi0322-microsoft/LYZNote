@@ -55,10 +55,13 @@ jobs:
           "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Build NSIS Installer
-        working-directory: .
+        shell: pwsh
+        working-directory: demo
         run: |
-          Get-Location
-          makensis /DAPP_VERSION=${{ env.APP_VERSION }} ./demo/docs/scripts/installer.nsi
+          $root = $pwd.Path
+          Write-Host "ROOT: $root"
+          Write-Host "Ico exists: $(Test-Path "$root\static\logo\logo.ico")"
+          makensis "/DAPP_VERSION=${{ env.APP_VERSION }}" "/DROOT=$root" ./docs/scripts/installer.nsi
       
       - name: print outputs
         working-directory: demo
