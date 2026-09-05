@@ -10,6 +10,7 @@ permissions:
 
 env:
   APP_VERSION: '1.4.2.0'
+  MAC_ARCH: "x86_64"
 
 jobs:
   # ============ Job：macOS Nuitka 编译并打包 zip（与 Windows 并行）============
@@ -44,20 +45,27 @@ jobs:
           ./docs/scripts/build_nuitka_mac.sh
         env:
           APP_VERSION: ${{ env.APP_VERSION }}
-          MAC_ARCH: "x86_64"
+          MAC_ARCH: ${{ env.MAC_ARCH }}
       
       # 必须 ditto 打包：保留 .app 内符号链接与可执行权限，普通 zip 会破坏权限导致“应用已损坏”
-      - name: Package app bundle to zip
-        working-directory: demo
-        run: |
-          APP_PATH=$(ls -d outputs/*.app 2>/dev/null | head -n1)
-          if [ -z "$APP_PATH" ]; then echo "::error::未找到 .app bundle,请检查 Nuitka 构建"; exit 1; fi
-          echo "App bundle: $APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "outputs/LYZNote-${{ env.APP_VERSION }}-macOS.zip"
+      # - name: Package app bundle to zip
+      #   working-directory: demo
+      #   run: |
+      #     APP_PATH=$(ls -d outputs/*.app 2>/dev/null | head -n1)
+      #     if [ -z "$APP_PATH" ]; then echo "::error::未找到 .app bundle,请检查 Nuitka 构建"; exit 1; fi
+      #     echo "App bundle: $APP_PATH"
+      #     ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "outputs/LYZNote-${{ env.APP_VERSION }}-macOS.zip"
 
+      # - name: Upload macOS zip artifact
+      #   uses: actions/upload-artifact@v5
+      #   with:
+      #     name: LYZNote-${{ env.APP_VERSION }}-macOS
+      #     path: demo/outputs/LYZNote-*-macOS.zip
+      #     retention-days: 7   # 最终产物保留 14 天，可直接从 Actions 页面下载分发
+      
       - name: Upload macOS zip artifact
         uses: actions/upload-artifact@v5
         with:
           name: LYZNote-${{ env.APP_VERSION }}-macOS
-          path: demo/outputs/LYZNote-*-macOS.zip
-          retention-days: 7   # 最终产物保留 14 天，可直接从 Actions 页面下载分发
+          path: demo/outputs/LYZNote-${{ env.APP_VERSION }}_${{ env.MAC_ARCH }}.dmg
+          retention-days: 7
