@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: '1.4.1.0'
+  APP_VERSION: '1.4.2.0'
 
 jobs:
   # ============ Job：macOS Nuitka 编译并打包 zip（与 Windows 并行）============
@@ -45,18 +45,6 @@ jobs:
         env:
           APP_VERSION: ${{ env.APP_VERSION }}
           MAC_ARCH: "x86_64"
-        
-      - name: check build artifacts
-        working-directory: demo
-        run: |
-          echo "===== check LYZNote.app bundle ====="
-          if [ -d "outputs/LYZNote.app" ]; then
-            echo "✅ LYZNote.app 生成成功"
-            ls -la outputs/LYZNote.app/Contents
-            file outputs/LYZNote.app/Contents/MacOS/LYZNote
-          else
-            echo "::warning::LYZNote.app 未生成,仅产出main.bin"
-          fi
       
       # 必须 ditto 打包：保留 .app 内符号链接与可执行权限，普通 zip 会破坏权限导致“应用已损坏”
       - name: Package app bundle to zip
