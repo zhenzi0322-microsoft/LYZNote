@@ -55,10 +55,10 @@ jobs:
           "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Build NSIS Installer
-        working-directory: demo
+        working-directory: .
         run: |
-          ls -l ./docs/scripts
-          makensis /DAPP_VERSION=${{ env.APP_VERSION }} ./docs/scripts/installer.nsi
+          Get-Location
+          makensis /DAPP_VERSION=${{ env.APP_VERSION }} ./demo/docs/scripts/installer.nsi
       
       - name: print outputs
         working-directory: demo
