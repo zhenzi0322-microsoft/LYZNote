@@ -50,7 +50,7 @@ jobs:
           retention-days: 7
 
   # ========= Job2：只做NSIS打包，不跑Nuitka编译 =========
-  build-package:
+  build-nsis:
     needs: build-compile   # 必须等编译job完成才执行
     runs-on: windows-latest
     steps:
