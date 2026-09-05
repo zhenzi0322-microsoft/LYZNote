@@ -64,7 +64,7 @@ jobs:
 
       # 下载上一步Nuitka编译好的 outputs 产物
       - name: Download compile artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: compile-output
           path: demo/outputs
