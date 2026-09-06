@@ -5,7 +5,7 @@ on:
     tags: ['win*']
 
 env:
-  APP_VERSION: '1.4.1.0'
+  APP_VERSION: '1.4.2.0'
 
 jobs:
   # ========= Job1：只做Nuitka编译，产出main.dist =========
@@ -41,14 +41,12 @@ jobs:
           ./docs/scripts/build_nuitka_win.ps1
         shell: pwsh
       
-      # ========== 新增：删除 debug.pak ==========
-      - name: Remove nuitka debug.pak before upload
-        shell: pwsh
+      # ========= 压缩 ==========
+      - name: Nuitka build windows compress
         working-directory: demo
         run: |
-          $distPath = "outputs/main.dist"
-          Get-ChildItem -Path $distPath -Recurse -Filter "*.debug.pak" -ErrorAction SilentlyContinue | Remove-Item -Force
-          Write-Host "debug.pak files cleaned in $distPath"
+          ./docs/scripts/compress.ps1
+        shell: pwsh
 
       # 上传编译产物（main.dist整个目录）给下一个job
       - name: Upload compile artifact
