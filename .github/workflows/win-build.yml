@@ -40,6 +40,15 @@ jobs:
         run: |
           ./docs/scripts/build_nuitka_win.ps1
         shell: pwsh
+      
+      # ========== 新增：删除 debug.pak ==========
+      - name: Remove nuitka debug.pak before upload
+        shell: pwsh
+        working-directory: demo
+        run: |
+          $distPath = "outputs/main.dist"
+          Get-ChildItem -Path $distPath -Recurse -Filter "*.debug.pak" -ErrorAction SilentlyContinue | Remove-Item -Force
+          Write-Host "debug.pak files cleaned in $distPath"
 
       # 上传编译产物（main.dist整个目录）给下一个job
       - name: Upload compile artifact
