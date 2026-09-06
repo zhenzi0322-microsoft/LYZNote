@@ -5,7 +5,7 @@ on:
     tags: ['win*']
 
 env:
-  APP_VERSION: '1.4.2.0'
+  APP_VERSION: '1.4.3.0'
 
 jobs:
   # ========= Job1：只做Nuitka编译，产出main.dist =========
