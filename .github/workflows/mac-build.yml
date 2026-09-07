@@ -21,7 +21,7 @@ jobs:
 
       - name: Clone Codeup private repo
         run: |
-          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
+          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/691f161ebb64aae551970861/Python/PySide6/LYZNote.git demo
           ls ./
 
       - name: Setup Python
