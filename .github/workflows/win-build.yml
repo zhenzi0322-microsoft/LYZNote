@@ -91,7 +91,7 @@ jobs:
           Write-Host "ROOT = $root"
           Write-Host "Ico exists: $(Test-Path "$root\static\logo\logo.ico")"
           Write-Host "main.dist exists: $(Test-Path "$root\outputs\main.dist")"
-          makensis /CHARSET=UTF-8 "/DAPP_VERSION=${{ env.APP_VERSION }}" "/DROOT=$root" ./docs/scripts/installer.nsi
+          makensis /INPUTCHARSET UTF8 "/DAPP_VERSION=${{ env.APP_VERSION }}" "/DROOT=$root" ./docs/scripts/installer.nsi
 
       - name: print outputs
         working-directory: demo
