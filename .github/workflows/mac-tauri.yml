@@ -1,4 +1,4 @@
-name: build-macos-package
+name: build-macos-tauri
 
 # 触发方式：
 #  1) 推送以 mac 开头的 tag（例如 mac0.1.0）——自动用该 tag 建/更新 GitHub Release。
