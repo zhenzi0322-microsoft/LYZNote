@@ -20,8 +20,12 @@ permissions:
 
 jobs:
   build-macos:
-    name: 构建 macOS 包（Universal：Apple Silicon + Intel）
+    name: 构建 macOS 包（arm64 + x86_64 + universal）
     runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 未配置签名：不填 APPLE_CERTIFICATE / TAURI_SIGNING_* 即产出未签名包，
+      # 也不会产出 .sig（产物列表里看不到它是正常的）。如需签名 / 公证，见文件末尾注释。
     steps:
       # 源码在 Codeup 私有库，本 GitHub 仓库只有 README/workflow，
       # 所以后面所有构建步骤都必须显式指向 demo 目录。
@@ -66,12 +70,11 @@ jobs:
             npm install
           fi
 
-      - name: 构建 Tauri 应用并发布到 GitHub Release
+      # 三种架构分三步串行构建：tauri-action 只按 args 里第一个 --target triple 拼产物
+      # 目录，写在同一步里会只上传一种。第一步建 Release，后两步按 tag 找到同一个
+      # draft 追加上传，也不会出现并行建 Release 的 422 竞态。
+      - name: 构建并发布— Apple Silicon（aarch64）
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 未配置签名：不填 APPLE_CERTIFICATE / TAURI_SIGNING_* 即产出未签名包。
-          # 如需签名 / 公证，见文件末尾注释。
         with:
           # Tauri 工程在 demo 子目录下（src-tauri / package.json 都在那儿）
           projectPath: ./demo
@@ -80,6 +83,32 @@ jobs:
           # 手动触发且留空时，显式跳过建 Release，产物只作为构建 artifact 保留。
           tagName: ${{ inputs.tag_name }}
           skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
+          # 必填：tag 对应的 Release 不存在时，tauri-action 需要 releaseName 才能新建（__VERSION__ 会被替换为 tauri.conf.json 里的 version）
+          releaseName: 'LYZNote v__VERSION__'
+          releaseBody: 'macOS 安装包：_aarch64（Apple Silicon）/ _x64（Intel）/ _universal（两种都能跑）。未签名，首次打开需右键 → 打开。'
+          releaseDraft: true
+          prerelease: false
+          args: --target aarch64-apple-darwin
+
+      - name: 构建并发布— Intel（x86_64）
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: ./demo
+          tagName: ${{ inputs.tag_name }}
+          skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
+          # 后两步 Release 已存在，tauri-action 按 tag 找到并复用，不会重复建
+          releaseName: 'LYZNote v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+          args: --target x86_64-apple-darwin
+
+      - name: 构建并发布— 通用包（universal）
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: ./demo
+          tagName: ${{ inputs.tag_name }}
+          skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
+          releaseName: 'LYZNote v__VERSION__'
           releaseDraft: true
           prerelease: false
           args: --target universal-apple-darwin
@@ -87,10 +116,16 @@ jobs:
 # ─────────────────────────────────────────────────────────────────────────
 # 补充说明
 #
-# 【只打某一种架构】把 args 换成下面之一即可（产物体积更小、构建更快）：
-#     --target aarch64-apple-darwin     # 仅 Apple Silicon
-#     --target x86_64-apple-darwin      # 仅 Intel
-#   收窄后记得把上面 rust-toolchain 的 targets 同步改成对应架构。
+# 【只打某一种 / 部分架构】下面三个「构建并发布— …」步骤，不需要哪个就删哪个（产物体积更小、构建更快）：
+#     args: --target aarch64-apple-darwin     # 仅 Apple Silicon
+#     args: --target x86_64-apple-darwin      # 仅 Intel
+#     args: --target universal-apple-darwin   # 双架构合一
+#   上面 rust-toolchain 的 targets 已经是 {aarch64, x86_64} 全集，universal 由两者合成，
+#   所以只删步骤就行，不必改 targets。
+#
+# 【不要把三个 target 写进同一个 args】tauri-action 取产物目录时只用 --target 后的
+#   第一个 triple 拼路径（看日志里的 Looking for artifacts in: …/target/<triple>/…），
+#   写在一起只会上传一种架构的包，剩下的静默丢失。
 #
 # 【开启签名 / 公证（可选，日后要做时）】在仓库 Settings → Secrets 里加：
 #     APPLE_CERTIFICATE            # .p12 开发者证书（base64）
