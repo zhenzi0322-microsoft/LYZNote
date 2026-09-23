@@ -1,0 +1,55 @@
+name: build-nsis
+on:
+  workflow_dispatch:
+
+env:
+  APP_VERSION: '1.4.3.0'
+
+jobs:
+  # ========= Job2：只做NSIS打包，不跑Nuitka编译 =========
+  build-nsis:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # 再次拉取源码（需要nsi脚本、static图标资源）
+      - name: Clone Codeup private repo into demo
+        run: |
+          git clone https://oauth2:${{ secrets.CODEUP_TOKEN }}@codeup.aliyun.com/zheniz0322/Python/GUI/PySide6/LYZNote.git demo
+        shell: pwsh
+
+      # 下载上一步Nuitka编译好的 outputs 产物
+      - name: Download compile artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: compile-output
+          path: demo/outputs/main.dist
+
+      - name: Install NSIS via Chocolatey
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      # ⚠️注意：working‑directory: demo，$root = demo目录，所有资源都在demo下
+      - name: Build NSIS Installer
+        shell: pwsh
+        working-directory: demo
+        run: |
+          $root = $pwd.Path
+          Write-Host "ROOT = $root"
+          Write-Host "Ico exists: $(Test-Path "$root\static\logo\logo.ico")"
+          Write-Host "main.dist exists: $(Test-Path "$root\outputs\main.dist")"
+          makensis /INPUTCHARSET UTF8 "/DAPP_VERSION=${{ env.APP_VERSION }}" "/DROOT=$root" ./docs/scripts/installer.nsi
+
+      - name: print outputs
+        working-directory: demo
+        run: |
+          Get-ChildItem ./outputs
+
+      - name: Upload final setup artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: LYZNote-${{ env.APP_VERSION }}-windows
+          path: demo/outputs/LYZNote-*-win-setup.exe
+          retention-days: 7

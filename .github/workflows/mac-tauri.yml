@@ -1,0 +1,101 @@
+name: build-macos-package
+
+# 触发方式：
+#  1) 推送以 mac 开头的 tag（例如 mac0.1.0）——自动用该 tag 建/更新 GitHub Release。
+#  2) 在 Actions 页面手动触发（workflow_dispatch）——可在输入框填一个 Release tag；
+#     留空则只构建、不发 Release（产物会作为构建 artifact 保留）。
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '要创建 / 更新的 Release tag（手动触发时填写；tag 推送触发可留空）'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'mac*'
+
+permissions:
+  contents: write   # 创建 / 更新 GitHub Release 需要写权限
+
+jobs:
+  build-macos:
+    name: 构建 macOS 包（Universal：Apple Silicon + Intel）
+    runs-on: macos-latest
+    steps:
+      # 源码在 Codeup 私有库，本 GitHub 仓库只有 README/workflow，
+      # 所以后面所有构建步骤都必须显式指向 demo 目录。
+      - name: Clone Codeup private repo into demo
+        env:
+          CODEUP_TOKEN: ${{ secrets.CODEUP_TOKEN }}
+        # 用 pwsh 的 ${env:...} 取变量，而不是 ${{ }} 直接拼进命令行，
+        # 避免 token 出现在进程命令行里。
+        run: |
+          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/lyznote-tauri.git" demo
+        shell: pwsh
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装 Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # universal 包需要同时能编到 arm64 与 x86_64 两个目标
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: 缓存 Rust 依赖（加速重复构建）
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './demo/src-tauri -> target'
+
+      - name: 安装前端依赖
+        # npm ci 会触发 package.json 的 postinstall：node scripts/copy-vditor.mjs
+        # 把 Vditor 运行时资源同步到 public/vendor，供打包后离线加载。
+        working-directory: demo
+        run: npm ci
+
+      - name: 构建 Tauri 应用并发布到 GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 未配置签名：不填 APPLE_CERTIFICATE / TAURI_SIGNING_* 即产出未签名包。
+          # 如需签名 / 公证，见文件末尾注释。
+        with:
+          # Tauri 工程在 demo 子目录下（src-tauri / package.json 都在那儿）
+          projectPath: ./demo
+          # tag 推送触发时 inputs.tag_name 为空，tauri-action 会自动使用被推送的 tag；
+          # 手动触发时用它填入的 tag 来建 / 更新 Release。
+          # 手动触发且留空时，显式跳过建 Release，产物只作为构建 artifact 保留。
+          tagName: ${{ inputs.tag_name }}
+          skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
+          releaseDraft: true
+          prerelease: false
+          args: --target universal-apple-darwin
+
+# ─────────────────────────────────────────────────────────────────────────
+# 补充说明
+#
+# 【只打某一种架构】把 args 换成下面之一即可（产物体积更小、构建更快）：
+#     --target aarch64-apple-darwin     # 仅 Apple Silicon
+#     --target x86_64-apple-darwin      # 仅 Intel
+#   收窄后记得把上面 rust-toolchain 的 targets 同步改成对应架构。
+#
+# 【开启签名 / 公证（可选，日后要做时）】在仓库 Settings → Secrets 里加：
+#     APPLE_CERTIFICATE            # .p12 开发者证书（base64）
+#     APPLE_CERTIFICATE_PASSWORD   # 证书密码
+#     APPLE_SIGNING_IDENTITY       # 例如 "Developer ID Application: 你的名字 (TEAMID)"
+#     APPLE_ID                     # 开发者 Apple ID（公证用）
+#     APPLE_PASSWORD               # App 专用密码
+#     APPLE_TEAM_ID                # 团队 ID
+#   配好这些 secret 后，tauri-action 会自动识别并完成签名 + 公证，无需改本文件。
+#
+# 【注意】macOS runner 需在 GitHub 上运行；私有仓库的 macOS 分钟按 10x 计费。
+#   本仓库不含 Tauri 源码，构建代码始终来自上面 clone 的 Codeup 私有库默认分支；
+#   GitHub 侧的 mac* tag 只用来给 Release 命名 / 定位，并不会切到对应代码版本。
+#   若要严格对应版本，clone 时加 --branch <tag 或 commit>。
+#
+# 【Release 可见性】releaseDraft: true 表示 Release 建出来是草稿，
+#   需要在 Releases 页面手动点 publish 才对外可见；想 tag 推送即发布，改成 false。
+# ─────────────────────────────────────────────────────────────────────────
