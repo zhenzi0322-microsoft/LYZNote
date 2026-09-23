@@ -51,10 +51,20 @@ jobs:
           workspaces: './demo/src-tauri -> target'
 
       - name: 安装前端依赖
-        # npm ci 会触发 package.json 的 postinstall：node scripts/copy-vditor.mjs
+        # npm ci / npm install 都会触发 package.json 的 postinstall：node scripts/copy-vditor.mjs
         # 把 Vditor 运行时资源同步到 public/vendor，供打包后离线加载。
+        # 仓库里提交了 package-lock.json 时才用 npm ci（可复现安装）；
+        # 没提交时 npm ci 会直接 EUSAGE 报错，回退到 npm install。
         working-directory: demo
-        run: npm ci
+        shell: bash
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "::notice::found lockfile, running npm ci"
+            npm ci
+          else
+            echo "::warning::no lockfile committed in repo, falling back to npm install (versions not pinned)"
+            npm install
+          fi
 
       - name: 构建 Tauri 应用并发布到 GitHub Release
         uses: tauri-apps/tauri-action@v0
