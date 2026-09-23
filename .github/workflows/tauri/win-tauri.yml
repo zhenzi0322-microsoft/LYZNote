@@ -1,0 +1,120 @@
+name: build-windows-tauri
+
+# 触发方式：
+#  1) 推送以 tauri-win 开头的 tag（例如 tauri-win0.1.0）——自动用该 tag 建/更新 GitHub Release。
+#  2) 在 Actions 页面手动触发（workflow_dispatch）——可在输入框填一个 Release tag；
+#     留空则只构建、不发 Release（产物会作为构建 artifact 保留）。
+# 注：tag 前缀特意用 tauri-win*，避免和旧的 Python+Nuitka 流水线 win-build.yml（监听 win*）撞车。
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '要创建 / 更新的 Release tag（手动触发时填写；tag 推送触发可留空）'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'tauri-win*'
+
+permissions:
+  contents: write   # 创建 / 更新 GitHub Release 需要写权限
+
+jobs:
+  build-windows:
+    name: 构建 Windows 安装包（NSIS）
+    runs-on: windows-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # 源码在 Codeup 私有库，本 GitHub 仓库只有 README/workflow，
+      # 所以后面所有构建步骤都必须显式指向 demo 目录。
+      - name: Clone Codeup private repo into demo
+        env:
+          CODEUP_TOKEN: ${{ secrets.CODEUP_TOKEN }}
+        # 用 pwsh 的 ${env:...} 取变量，而不是 ${{ }} 直接拼进命令行，
+        # 避免 token 出现在进程命令行里。
+        run: |
+          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/lyznote-tauri.git" demo
+        shell: pwsh
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装 Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Windows 上 Tauri 走 MSVC 工具链
+          targets: x86_64-pc-windows-msvc
+
+      - name: 缓存 Rust 依赖（加速重复构建）
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './demo/src-tauri -> target'
+
+      - name: 安装前端依赖
+        # npm ci / npm install 都会触发 package.json 的 postinstall：node scripts/copy-vditor.mjs
+        # 把 Vditor 运行时资源同步到 public/vendor，供打包后离线加载。
+        # 仓库里提交了 package-lock.json 时才用 npm ci（可复现安装）；
+        # 没提交时 npm ci 会直接 EUSAGE 报错，回退到 npm install。
+        working-directory: demo
+        shell: bash
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "::notice::found lockfile, running npm ci"
+            npm ci
+          else
+            echo "::warning::no lockfile committed in repo, falling back to npm install (versions not pinned)"
+            npm install
+          fi
+
+      # 用你指定的命令只打 NSIS 安装包。Tauri 会在构建时自行下载 / 调用它内置的
+      # NSIS 工具链，无需再单独 choco install nsis。
+      - name: 构建 NSIS 安装包（npm run tauri:build）
+        working-directory: demo
+        shell: bash
+        run: npm run tauri:build -- --bundles nsis
+
+      - name: 打印产物目录
+        shell: pwsh
+        run: Get-ChildItem -Recurse ./demo/src-tauri/target/release/bundle/nsis
+
+      # 先作为构建 artifact 保留（无论是否发 Release 都能下载）。
+      - name: 上传 NSIS 安装包 artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: LYZNote-windows-nsis
+          path: demo/src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 7
+
+      # 有 tag 时（推送 tag 触发，或手动触发填了 tag）把 exe 追加进对应 Release。
+      # 手动触发且留空时跳过：只保留上面的构建 artifact。
+      - name: 发布到 GitHub Release
+        if: ${{ github.event_name == 'push' || inputs.tag_name != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          name: 'LYZNote v${{ inputs.tag_name || github.ref_name }}'
+          body: 'Windows 安装包（NSIS）：.exe，双击安装。'
+          draft: true
+          prerelease: false
+          files: demo/src-tauri/target/release/bundle/nsis/*.exe
+
+# ─────────────────────────────────────────────────────────────────────────
+# 补充说明
+#
+# 【为什么不装 NSIS】Tauri 打 nsis bundle 时会自行拉取内置的 NSIS 工具，
+#   跟 win-build.yml / make-nsis.yml 里那套「Nuitka 编译 + choco 装 makensis」的老流水线不同，
+#   这里不需要手动安装 NSIS。
+#
+# 【MSVC 链接器】windows-latest runner 预装了 Visual Studio Build Tools，
+#   一般无需额外步骤。若报 link.exe 找不到，可在 Rust 步骤前加：
+#     - uses: ilammy/msvc-dev-cmd@v1
+#
+# 【产物路径】NSIS 安装包在 demo/src-tauri/target/release/bundle/nsis/*.exe；
+#   若改了 Tauri 的 target 目录（如加 --target x86_64-pc-windows-msvc），产物会多一层同名子目录。
+#
+# 【Release 可见性】draft: true 表示 Release 建出来是草稿，
+#   需要在 Releases 页面手动点 publish 才对外可见；想 tag 推送即发布，改成 false。
+# ─────────────────────────────────────────────────────────────────────────
