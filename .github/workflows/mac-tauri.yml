@@ -35,7 +35,7 @@ jobs:
         # 用 pwsh 的 ${env:...} 取变量，而不是 ${{ }} 直接拼进命令行，
         # 避免 token 出现在进程命令行里。
         run: |
-          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/JianLu-tauri.git" demo
+          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/lyznote-tauri.git" demo
         shell: pwsh
 
       - name: 安装 Node.js
