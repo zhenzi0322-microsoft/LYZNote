@@ -35,7 +35,7 @@ jobs:
         # 用 pwsh 的 ${env:...} 取变量，而不是 ${{ }} 直接拼进命令行，
         # 避免 token 出现在进程命令行里。
         run: |
-          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/lyznote-tauri.git" demo
+          git clone "https://oauth2:${env:CODEUP_TOKEN}@codeup.aliyun.com/zheniz0322/Rust/tauri/JianLu-tauri.git" demo
         shell: pwsh
 
       - name: 安装 Node.js
@@ -83,8 +83,11 @@ jobs:
           # 手动触发且留空时，显式跳过建 Release，产物只作为构建 artifact 保留。
           tagName: ${{ inputs.tag_name }}
           skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
-          # 必填：tag 对应的 Release 不存在时，tauri-action 需要 releaseName 才能新建（__VERSION__ 会被替换为 tauri.conf.json 里的 version）
-          releaseName: 'LYZNote v__VERSION__'
+          # 注意：标题 / 描述只在 Release 首次创建时生效，后续往同一个 tag 追加
+          # 产物时 tauri-action 不会改它。这里用 tag 里的版本号而不是 __VERSION__
+          # （tauri.conf.json 的 version），避免首次创建时 conf 版本还是旧值、
+          # 标题被永久定格成旧版本号（tag 和标题是 Release 的两个独立字段）。
+          releaseName: 'JianLu v${{ inputs.tag_name || github.ref_name }}'
           releaseBody: 'macOS 安装包：_aarch64（Apple Silicon）/ _x64（Intel）/ _universal（两种都能跑）。未签名，首次打开需右键 → 打开。'
           releaseDraft: true
           prerelease: false
@@ -97,7 +100,7 @@ jobs:
           tagName: ${{ inputs.tag_name }}
           skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
           # 后两步 Release 已存在，tauri-action 按 tag 找到并复用，不会重复建
-          releaseName: 'LYZNote v__VERSION__'
+          releaseName: 'JianLu v${{ inputs.tag_name || github.ref_name }}'
           releaseDraft: true
           prerelease: false
           args: --target x86_64-apple-darwin
@@ -108,7 +111,7 @@ jobs:
           projectPath: ./demo
           tagName: ${{ inputs.tag_name }}
           skipRelease: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name == '' }}
-          releaseName: 'LYZNote v__VERSION__'
+          releaseName: 'JianLu v${{ inputs.tag_name || github.ref_name }}'
           releaseDraft: true
           prerelease: false
           args: --target universal-apple-darwin
