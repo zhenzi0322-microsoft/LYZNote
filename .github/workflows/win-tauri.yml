@@ -71,10 +71,37 @@ jobs:
 
       # 用你指定的命令只打 NSIS 安装包。Tauri 会在构建时自行下载 / 调用它内置的
       # NSIS 工具链，无需再单独 choco install nsis。
+      #
+      # 【为什么要先改 tauri.conf.json 的 version】安装包文件名 / 安装器版本 / 应用内
+      # 显示的版本默认只认 Codeup 仓库 src-tauri/tauri.conf.json 里的 version，
+      # 和手动触发填的 tag（或推送的 tag）没有任何关系，会出现「Release 是 0.2.0、
+      # 包里却是 0.1.x」的错位。这里把 tag 里的版本号（去掉 tauri-win 前缀）写回
+      # 配置，让包版本和 Release tag 保持一致。
       - name: 构建 NSIS 安装包（npm run tauri:build）
         working-directory: demo
         shell: bash
-        run: npm run tauri:build -- --bundles nsis
+        env:
+          # 与发布步骤同源：手动触发取输入框，tag 推送取被推的 tag 名
+          RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # 手动触发且没填 tag：本来就不发 Release，包版本维持 tauri.conf.json 不动
+          # （此时 RELEASE_TAG 会回落成分支名，不能当版本号用）
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -z "$RELEASE_TAG" ]; then
+            echo "::notice::no release tag entered, building with tauri.conf.json version as-is"
+          else
+            # tauri-win0.2.0 -> 0.2.0；填的是纯版本号（无前缀）则原样使用
+            VERSION="${RELEASE_TAG#tauri-win}"
+            node -e '
+              const fs = require("fs");
+              const p = "src-tauri/tauri.conf.json";
+              const conf = JSON.parse(fs.readFileSync(p, "utf8"));
+              conf.version = process.argv[1];
+              fs.writeFileSync(p, JSON.stringify(conf, null, 2) + "\n");
+              console.log("tauri version set to " + process.argv[1]);
+            ' "$VERSION"
+          fi
+          npm run tauri:build -- --bundles nsis
 
       - name: 打印产物目录
         shell: pwsh
